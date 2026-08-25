@@ -1,0 +1,9 @@
+# Default owner for everything in the repo.
+* @SkilLab-Tech
+
+# Security-sensitive surfaces — explicit review required.
+/.github/workflows/** @SkilLab-Tech
+/src/auth/**         @SkilLab-Tech
+/src/db/**           @SkilLab-Tech
+/wrangler.jsonc      @SkilLab-Tech
+/LICENSE             @SkilLab-Tech

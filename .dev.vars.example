@@ -1,0 +1,24 @@
+# Local dev secrets for `wrangler dev`. Copy to `.dev.vars` and fill in.
+# `.dev.vars` is gitignored — NEVER commit real secrets. In production set these with
+# `wrangler secret put <NAME> --env production` instead of a file.
+
+# Cloudflare account that owns the bound resources (used by the AI Gateway path).
+CF_ACCOUNT_ID=""
+
+# Salt/pepper for hashing API keys at rest (random, ≥32 bytes). Required.
+API_KEY_PEPPER=""
+
+# Premium inference via AI Gateway → Anthropic. Optional; Workers AI is the default/fallback.
+ANTHROPIC_API_KEY=""
+
+# Optional Brazilian LLM provider (Maritaca). Leave empty to disable.
+MARITACA_API_KEY=""
+
+# Bring-Your-Own-Key envelope key (only if BYOK_ENABLED=true). Optional.
+BYOK_KEK=""
+
+# Billing (only if you run the managed/paid tiers). All optional for self-host.
+STRIPE_SECRET_KEY=""
+STRIPE_WEBHOOK_SECRET=""
+STRIPE_PRICE_STARTER=""
+STRIPE_PRICE_PRO=""

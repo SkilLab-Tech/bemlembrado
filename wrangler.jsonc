@@ -1,0 +1,132 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bemlembrado",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Per-turn token telemetry + tracing (FR-9 surfaces lean on this).
+  "observability": { "enabled": true },
+  "placement": { "mode": "smart" },
+
+  // D1 — episodic log + source of truth. database_id is a PLACEHOLDER:
+  // run `wrangler d1 create bemlembrado` and paste the id. Migrations live in /migrations.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bemlembrado",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // KV — hot-path (session->DO routing, cached summaries, dedupe). id PLACEHOLDER:
+  // `wrangler kv namespace create KV`.
+  "kv_namespaces": [
+    { "binding": "KV", "id": "0000000000000000000000000000000000" }
+  ],
+
+  // Vectorize — semantic memory, namespaced per tenant. bge-m3 = 1024 dims, cosine, topK<=50.
+  // Provisioned: `wrangler vectorize create bemlembrado-mem --dimensions=1024 --metric=cosine`.
+  // NOTE: no local Miniflare simulation — excluded from the `test` env (see below).
+  "vectorize": [
+    { "binding": "VECTORIZE", "index_name": "bemlembrado-mem" }
+  ],
+
+  // Durable Object — per-session working memory + write serialization + MCP session state.
+  // Class name LOCKED to SessionDO (must match the exported class, else the DO migration fails).
+  "durable_objects": {
+    "bindings": [{ "name": "SESSION", "class_name": "SessionDO" }]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["SessionDO"] }
+  ],
+
+  // Workers AI — bge-m3 embeddings (1024 dims) + summarization LLM (V1).
+  // NOTE: always-remote binding — excluded from the `test` env (see below).
+  "ai": { "binding": "AI" },
+
+  // R2 — LLM-Wiki markdown vault (SOURCE OF TRUTH for notes). Enable bucket-level
+  // object versioning in staging/prod (runbook) so curator updates are non-destructive.
+  // Provision: `wrangler r2 bucket create bemlembrado-vault`.
+  // Locally simulable by Miniflare → INCLUDED in the `test` env (unlike AI/Vectorize).
+  "r2_buckets": [
+    { "binding": "VAULT", "bucket_name": "bemlembrado-vault" }
+  ],
+
+  // Non-secret config. SECRETS go via `wrangler secret put` (NEVER here, NEVER logged):
+  //   ANTHROPIC_API_KEY, API_KEY_PEPPER, CLOUDFLARE_API_TOKEN
+  "vars": {
+    "ENVIRONMENT": "dev",
+    "DEV_AUTHLESS": "true",
+    // AI Gateway (default gateway) — proxies Anthropic/Workers AI, cache_control passthrough.
+    "CF_AIGATEWAY_ID": "default",
+    // Retention auto-purge (F5 #110-111): "false" = dry-run (count+log only), never deletes.
+    "RETENTION_PURGE_ENABLED": "false"
+    // "CF_ACCOUNT_ID": set per-env / via secret.
+  },
+
+  // Scheduled retention sweep (src/index.ts `scheduled`). Daily 03:00 UTC; dry-run
+  // unless RETENTION_PURGE_ENABLED="true" in the target env. Named envs re-declare it.
+  "triggers": { "crons": ["0 3 * * *"] },
+
+  "env": {
+    "staging": {
+      "vars": { "ENVIRONMENT": "staging", "DEV_AUTHLESS": "false", "CF_AIGATEWAY_ID": "default", "RETENTION_PURGE_ENABLED": "false", "RATE_LIMIT_ENABLED": "true", "ABUSE_GUARDS_ENABLED": "true", "PLAN_GATING_ENABLED": "true" },
+      "triggers": { "crons": ["0 3 * * *"] },
+      // Named environments do NOT inherit top-level bindings — declared explicitly.
+      "d1_databases": [
+        { "binding": "DB", "database_name": "bemlembrado", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+      ],
+      "kv_namespaces": [{ "binding": "KV", "id": "0000000000000000000000000000000000" }],
+      "vectorize": [{ "binding": "VECTORIZE", "index_name": "bemlembrado-mem" }],
+      "r2_buckets": [{ "binding": "VAULT", "bucket_name": "bemlembrado-vault" }],
+      "ai": { "binding": "AI" },
+      "durable_objects": { "bindings": [{ "name": "SESSION", "class_name": "SessionDO" }] },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SessionDO"] }]
+    },
+    "production": {
+      "vars": { "ENVIRONMENT": "production", "DEV_AUTHLESS": "false", "CF_AIGATEWAY_ID": "default", "RETENTION_PURGE_ENABLED": "false", "RATE_LIMIT_ENABLED": "true", "ABUSE_GUARDS_ENABLED": "true", "PLAN_GATING_ENABLED": "true" },
+      "triggers": { "crons": ["0 3 * * *"] },
+      // Custom domain — auto-provisions the DNS record + edge cert for the API.
+      "routes": [{ "pattern": "api.bemlembrado.com", "custom_domain": true }],
+      // Named environments do NOT inherit top-level bindings — declared explicitly.
+      // DEDICATED prod resources (isolated from dev/staging; provisioned 2026-07-01).
+      "d1_databases": [
+        { "binding": "DB", "database_name": "bemlembrado-prod", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+      ],
+      "kv_namespaces": [{ "binding": "KV", "id": "0000000000000000000000000000000000" }],
+      "vectorize": [{ "binding": "VECTORIZE", "index_name": "bemlembrado-mem-prod" }],
+      "r2_buckets": [{ "binding": "VAULT", "bucket_name": "bemlembrado-vault-prod" }],
+      "ai": { "binding": "AI" },
+      "durable_objects": { "bindings": [{ "name": "SESSION", "class_name": "SessionDO" }] },
+      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SessionDO"] }]
+    },
+    // Test env for @cloudflare/vitest-pool-workers: only the locally-simulable
+    // bindings (D1/KV/DO). AI + Vectorize are deliberately OMITTED because they
+    // have no local Miniflare implementation and force a remote proxy session
+    // (which needs Cloudflare credentials — absent in CI). F2/F3 tests that need
+    // Vectorize/AI will add a mock or remote-with-secret strategy.
+    "test": {
+      // DEV_AUTHLESS off by default so tests exercise real auth; dev-mode tests set it per-case.
+      "vars": { "ENVIRONMENT": "test", "DEV_AUTHLESS": "false", "CF_AIGATEWAY_ID": "default" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "bemlembrado",
+          "database_id": "00000000-0000-0000-0000-000000000000",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "kv_namespaces": [
+        { "binding": "KV", "id": "0000000000000000000000000000000000" }
+      ],
+      "r2_buckets": [
+        { "binding": "VAULT", "bucket_name": "bemlembrado-vault" }
+      ],
+      "durable_objects": {
+        "bindings": [{ "name": "SESSION", "class_name": "SessionDO" }]
+      }
+    }
+  }
+}

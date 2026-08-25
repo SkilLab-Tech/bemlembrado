@@ -1,0 +1,21 @@
+# gitleaks config — extends the default ruleset and allowlists known-fake test fixtures.
+#
+# CI runs `gitleaks detect --source .` over the FULL history (fetch-depth: 0), so an
+# allowlist must be by regex/path — NOT commit SHA — to survive squash-merges.
+#
+# Real secrets never live in this repo: production credentials are stored via Worker
+# Secrets and in git-ignored files OUTSIDE the tree (see repo docs). Anything matched
+# below is a deliberately non-secret placeholder used in tests.
+
+title = "bemlembrado gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Non-secret test fixtures (fake ids/keys used only in unit tests)"
+regexTarget = "line"
+regexes = [
+  # LGPD audit-log tests use a dummy API-key id, not a credential (test/lgpd/audit.test.ts).
+  '''key-abc12345''',
+]

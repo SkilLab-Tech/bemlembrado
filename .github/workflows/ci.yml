@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: typecheck · lint · test · migrations · audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck (TS strict, zero any)
+        run: pnpm typecheck
+      - name: Lint (no-explicit-any)
+        run: pnpm lint
+      - name: Tests (vitest / workers pool)
+        run: pnpm test
+      - name: D1 migrations — clean apply from zero
+        run: pnpm exec wrangler d1 migrations apply bemlembrado --local
+      - name: Dependency audit (high+)
+        run: pnpm audit --audit-level=high
+      # ---- P0 invariant gates (B-004). BLOCKING by default as of the F5 exit gate
+      # (#125): both invariants are implemented and green (cache-prefix since F3,
+      # tenant-isolation since F2), so a PR that breaks either CANNOT merge. The repo
+      # variable is an emergency DOWNGRADE only — set P0_CACHE_PREFIX/P0_TENANT_ISO to
+      # "warn" to un-block temporarily; unset (default) means "required". ----
+      - name: "P0-1 cache-prefix byte-identity (mode=${{ vars.P0_CACHE_PREFIX || 'required' }})"
+        env:
+          P0_CACHE_PREFIX: ${{ vars.P0_CACHE_PREFIX || 'required' }}
+        run: |
+          set +e
+          INVARIANTS=1 pnpm exec vitest run test/invariants/cache-prefix.test.ts
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            if [ "$P0_CACHE_PREFIX" != "warn" ]; then
+              echo "::error::P0-1 cache-prefix invariant FAILED (blocking — the retrieved Context Block must stay after the cache breakpoint and the static prefix byte-identical)"; exit 1
+            fi
+            echo "::warning::P0-1 cache-prefix invariant RED but DOWNGRADED to warn via repo variable"
+          fi
+      - name: "P0-2 tenant-isolation (mode=${{ vars.P0_TENANT_ISO || 'required' }})"
+        env:
+          P0_TENANT_ISO: ${{ vars.P0_TENANT_ISO || 'required' }}
+        run: |
+          set +e
+          INVARIANTS=1 pnpm exec vitest run test/invariants/tenant-isolation.test.ts
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            if [ "$P0_TENANT_ISO" != "warn" ]; then
+              echo "::error::P0-2 tenant-isolation invariant FAILED (blocking — every data-layer query must carry a namespace; no cross-tenant read)"; exit 1
+            fi
+            echo "::warning::P0-2 tenant-isolation invariant RED but DOWNGRADED to warn via repo variable"
+          fi
+
+  secret-scan:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks (binary — no org license needed)
+        run: |
+          set -euo pipefail
+          GL_VERSION=8.21.2
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/gitleaks_${GL_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks detect --source . --redact --no-banner --exit-code 1
+
+  commitlint:
+    name: commitlint
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint PR commit messages (conventional)
+        run: pnpm exec commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose

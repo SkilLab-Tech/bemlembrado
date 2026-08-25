@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.skillab-tech/bemlembrado",
+  "title": "BemLembrado",
+  "description": "Cache-aware, edge-native agent memory on Cloudflare: semantic search, capture, and a session Context Block designed to sit after the prompt-cache breakpoint.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/SkilLab-Tech/bemlembrado",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.bemlembrado.com/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer <token>: a BemLembrado scoped device token (blt_) or the tenant API key (bl_).",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

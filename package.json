@@ -1,0 +1,65 @@
+{
+  "name": "bemlembrado",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "BemLembrado — cache-aware, edge-native agent memory layer on Cloudflare. Open-core + managed.",
+  "license": "BUSL-1.1",
+  "packageManager": "pnpm@9.15.0",
+  "bin": {
+    "bemlembrado": "scripts/self-host-init.mjs"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:invariants": "INVARIANTS=1 vitest run",
+    "cf-typegen": "wrangler types"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd",
+      "@cloudflare/workerd-linux-64",
+      "@cloudflare/workerd-linux-arm64"
+    ],
+    "overrides": {
+      "brace-expansion@>=3.0.0 <5.0.8": ">=5.0.8",
+      "js-yaml@>=4.0.0 <4.3.0": ">=4.3.0",
+      "fast-uri@>=3.0.0 <3.1.4": ">=3.1.4",
+      "fast-xml-parser@>=5.9.3 <5.10.1": ">=5.10.1",
+      "postcss@>=8.0.0 <8.5.18": ">=8.5.18",
+      "sharp@<0.35.0": ">=0.35.0",
+      "undici@>=7.0.0 <7.29.0": ">=7.29.0",
+      "ip-address@<=10.3.0": ">=10.3.1",
+      "nanoid@<3.3.18": ">=3.3.18"
+    }
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.19",
+    "@cloudflare/workers-types": "^4.20260624.1",
+    "@commitlint/cli": "^21.1.0",
+    "@commitlint/config-conventional": "^21.1.0",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.5.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.0",
+    "vitest": "^4.1.9",
+    "wrangler": "^4.104.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "agents": "0.16.2",
+    "fflate": "^0.8.3",
+    "hono": "^4.12.27",
+    "zod": "^4.4.3"
+  }
+}
