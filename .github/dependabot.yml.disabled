@@ -1,0 +1,25 @@
+# Dependabot — upgrade recorrente de dependências do core público.
+# Espelha a política do repo privado `bem-lembrado`: semanal, minor+patch agrupados numa PR só,
+# major fica de fora (bump de major é decisão explícita).
+#
+# Sem bloco `registries:` de propósito: o core público não tem nenhuma dependência
+# `@skillab-tech/*` e não deve ter. Se um dia aparecer uma, o errado é a dependência,
+# não este arquivo.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
