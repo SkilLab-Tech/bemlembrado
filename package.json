@@ -57,7 +57,7 @@
     "wrangler": "^4.130.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.31.0",
     "agents": "0.16.2",
     "fflate": "^0.8.3",
     "hono": "^4.13.7",
