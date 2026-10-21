@@ -60,7 +60,7 @@
     "@modelcontextprotocol/sdk": "1.29.0",
     "agents": "0.16.2",
     "fflate": "^0.8.3",
-    "hono": "^4.13.7",
+    "hono": "^4.13.11",
     "zod": "^4.5.4"
   }
 }
